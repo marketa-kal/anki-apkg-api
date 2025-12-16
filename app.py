@@ -33,13 +33,23 @@ def create_apkg():
     )
 
     for card in cards:
-        note = genanki.Note(
-            model=my_model,
-            fields=[card['question'], card['answer']]
-        )
-        my_deck.add_note(note)
+        question = card.get('question', '')
+        answer = card.get('answer', '')
+        if question and answer:
+            note = genanki.Note(
+                model=my_model,
+                fields=[question, answer]
+            )
+            my_deck.add_note(note)
 
-    output_file = f"{deck_name.replace(' ', '_')}.apkg"
-    genanki.Package(my_deck).write_to_file(output_file)
+    filename = f"{deck_name.replace(' ', '_')}.apkg"
+    filepath = os.path.join("/tmp", filename)
 
-    return send_file(output_file, as_attachment=True)
+    genanki.Package(my_deck).write_to_file(filepath)
+
+    return send_file(filepath, as_attachment=True)
+
+# ✅ Nutné pro spuštění na Railway
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
