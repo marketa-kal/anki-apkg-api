@@ -3,7 +3,6 @@ import genanki
 import tempfile
 import uuid
 import os
-import json
 
 app = Flask(__name__)
 
@@ -43,5 +42,8 @@ def generate_apkg():
         genanki.Package(deck).write_to_file(tmp_file.name)
         return send_file(tmp_file.name, as_attachment=True, download_name=f'{deck_name}.apkg')
 
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Railway expects the app to listen on 0.0.0.0 and port from $PORT
+    port = int(os.environ.get('PORT', 8000))
+    app.run(host='0.0.0.0', port=port)
