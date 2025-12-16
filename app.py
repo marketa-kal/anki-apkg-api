@@ -1,55 +1,47 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, send_file
 import genanki
-import os
+import tempfile
 import uuid
+import os
+import json
 
 app = Flask(__name__)
 
-@app.route('/')
-def index():
-    return 'Anki .apkg generator is running!'
-
-@app.route('/create-apkg', methods=['POST'])
-def create_apkg():
+@app.route('/generate-apkg', methods=['POST'])
+def generate_apkg():
     data = request.get_json()
-    deck_name = data.get('deckName', 'MyDeck')
+    deck_name = data.get('deckName', 'My Deck')
     cards = data.get('cards', [])
 
-    if not cards:
-        return jsonify({'error': 'No cards provided'}), 400
+    deck_id = int(uuid.uuid4()) >> 64
+    model_id = int(uuid.uuid4()) >> 64
 
-    deck_id = int(str(uuid.uuid4().int)[:10])
-    my_deck = genanki.Deck(deck_id, deck_name)
+    model = genanki.Model(
+        model_id,
+        'Basic Model',
+        fields=[
+            {'name': 'Front'},
+            {'name': 'Back'},
+        ],
+        templates=[
+            {
+                'name': 'Card 1',
+                'qfmt': '{{Front}}',
+                'afmt': '{{Back}}',
+            },
+        ])
 
-    my_model = genanki.Model(
-        1607392319,
-        'Simple Model',
-        fields=[{'name': 'Question'}, {'name': 'Answer'}],
-        templates=[{
-            'name': 'Card 1',
-            'qfmt': '{{Question}}',
-            'afmt': '{{FrontSide}}<hr id="answer">{{Answer}}',
-        }],
-    )
+    deck = genanki.Deck(deck_id, deck_name)
 
     for card in cards:
-        question = card.get('question', '')
-        answer = card.get('answer', '')
-        if question and answer:
-            note = genanki.Note(
-                model=my_model,
-                fields=[question, answer]
-            )
-            my_deck.add_note(note)
+        deck.add_note(genanki.Note(
+            model=model,
+            fields=[card['question'], card['answer']]
+        ))
 
-    filename = f"{deck_name.replace(' ', '_')}.apkg"
-    filepath = os.path.join("/tmp", filename)
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.apkg') as tmp_file:
+        genanki.Package(deck).write_to_file(tmp_file.name)
+        return send_file(tmp_file.name, as_attachment=True, download_name=f'{deck_name}.apkg')
 
-    genanki.Package(my_deck).write_to_file(filepath)
-
-    return send_file(filepath, as_attachment=True)
-
-# ✅ Nutné pro spuštění na Railway
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+if __name__ == '__main__':
+    app.run(debug=True)
