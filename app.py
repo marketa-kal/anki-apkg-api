@@ -3,6 +3,7 @@ import genanki
 import tempfile
 import uuid
 import os
+import random
 
 app = Flask(__name__)
 
@@ -12,8 +13,9 @@ def generate_apkg():
     deck_name = data.get('deckName', 'My Deck')
     cards = data.get('cards', [])
 
-    deck_id = int(uuid.uuid4()) >> 64
-    model_id = int(uuid.uuid4()) >> 64
+    # Bezpečný rozsah ID (kompatibilní se SQLite)
+    deck_id = random.randrange(1 << 30, 1 << 31)
+    model_id = random.randrange(1 << 30, 1 << 31)
 
     model = genanki.Model(
         model_id,
@@ -28,15 +30,19 @@ def generate_apkg():
                 'qfmt': '{{Front}}',
                 'afmt': '{{Back}}',
             },
-        ])
+        ]
+    )
 
     deck = genanki.Deck(deck_id, deck_name)
 
     for card in cards:
-        deck.add_note(genanki.Note(
-            model=model,
-            fields=[card['question'], card['answer']]
-        ))
+        question = card.get('question', '')
+        answer = card.get('answer', '')
+        if question and answer:
+            deck.add_note(genanki.Note(
+                model=model,
+                fields=[question, answer]
+            ))
 
     with tempfile.NamedTemporaryFile(delete=False, suffix='.apkg') as tmp_file:
         genanki.Package(deck).write_to_file(tmp_file.name)
@@ -44,6 +50,5 @@ def generate_apkg():
 
 
 if __name__ == '__main__':
-    # Railway expects the app to listen on 0.0.0.0 and port from $PORT
     port = int(os.environ.get('PORT', 8000))
     app.run(host='0.0.0.0', port=port)
